@@ -1,0 +1,208 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Prisma Schema — Bus Booking Application
+// Provider: Neon PostgreSQL (serverless)
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum Role {
+  BUS_OWNER
+  ADMIN
+}
+
+enum BusType {
+  NORMAL
+  SEMI_LUXURY
+  LUXURY
+  EXPRESSWAY
+}
+
+/// Determines whether passengers choose seats during booking.
+/// Derived from bus type but stored explicitly on Schedule.
+enum SeatSelectionMode {
+  NONE      // NORMAL buses — no seat selection
+  OPTIONAL  // SEMI_LUXURY buses — seat selection is optional
+  REQUIRED  // LUXURY / EXPRESSWAY — seat must be selected
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Models
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Owner of one or more buses
+model BusOwner {
+  id        String   @id @default(cuid())
+  name      String
+  /// Sri Lanka format: 94xxxxxxxxx (no leading +, no spaces)
+  phone     String   @unique
+  email     String?  @unique
+  role      Role     @default(BUS_OWNER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  buses Bus[]
+}
+
+/// Platform administrator
+model Admin {
+  id        String   @id @default(cuid())
+  name      String
+  /// Sri Lanka format: 94xxxxxxxxx (no leading +, no spaces)
+  phone     String   @unique
+  role      Role     @default(ADMIN)
+  createdAt DateTime @default(now())
+}
+
+/// One-time password used to authenticate owners and admins via SMS
+model OtpCode {
+  id        String   @id @default(cuid())
+  phone     String
+  /// bcrypt hash of the 6-digit numeric OTP
+  code      String
+  role      Role
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([phone, role])
+}
+
+/// A physical bus registered by a bus owner.
+/// totalSeats is auto-calculated: NORMAL = rows×5+5, others = rows×4+5
+model Bus {
+  id                 String   @id @default(cuid())
+  ownerId            String
+  name               String                  // e.g. "Lanka Ashok Leyland 2021"
+  registrationNumber String                  // licence plate
+  busType            BusType  @default(NORMAL)
+  /// Number of seat rows EXCLUDING the back row (min 5, max 20)
+  rows               Int
+  /// Auto-calculated from busType and rows — do not set manually
+  totalSeats         Int
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  owner     BusOwner   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  schedules Schedule[]
+}
+
+/// A named bus station / terminal
+model BusStation {
+  id        String  @id @default(cuid())
+  name      String  @unique               // English name — unique for safe upsert
+  nameLocal String                        // Sinhala transliteration
+  district  String
+  province  String
+  latitude  Float?
+  longitude Float?
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+
+  schedulesFrom Schedule[] @relation("FromStation")
+  schedulesTo   Schedule[] @relation("ToStation")
+}
+
+/// A bus route/schedule — either recurring (daily) or one-off
+model Schedule {
+  id            String            @id @default(cuid())
+  busId         String
+  fromStationId String
+  toStationId   String
+  /// For recurring schedules: store only the time using 1970-01-01 as a
+  /// placeholder date (only the HH:MM:SS portion matters).
+  /// For non-recurring schedules: store the full departure datetime.
+  departureAt         DateTime
+  price               Decimal           @db.Decimal(10, 2)
+  /// If true, this schedule repeats every day (filtered by activeDays)
+  isRecurring         Boolean           @default(true)
+  /// Owner can toggle this off to suspend a recurring schedule
+  isActive            Boolean           @default(true)
+  /// Comma-separated day numbers: 1=Monday … 7=Sunday. e.g. "1,2,3,4,5,6,7"
+  activeDays          String            @default("1,2,3,4,5,6,7")
+  /// Derived from bus type but stored here for fast reads
+  seatSelectionMode   SeatSelectionMode
+  /// Prevents a second pre-journey SMS being sent to the bus owner
+  smsNotificationSent Boolean           @default(false)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  bus         Bus            @relation(fields: [busId], references: [id], onDelete: Cascade)
+  fromStation BusStation     @relation("FromStation", fields: [fromStationId], references: [id])
+  toStation   BusStation     @relation("ToStation", fields: [toStationId], references: [id])
+  bookings    Booking[]
+  seats       ScheduleSeat[]
+}
+
+/// Tracks the status of an individual seat for a specific schedule on a specific
+/// journey date. Created lazily (only when a seat is booked or disabled).
+model ScheduleSeat {
+  id          String    @id @default(cuid())
+  scheduleId  String
+  /// e.g. "1A", "2B", "BA" (back row A) — matches labels from generateSeatLayout()
+  seatLabel   String
+  /// The actual calendar date of travel (YYYY-MM-DD stored at midnight UTC)
+  journeyDate DateTime
+  isDisabled  Boolean   @default(false)
+  disabledBy  String?   // ownerId who disabled it
+  disabledAt  DateTime?
+
+  schedule Schedule  @relation(fields: [scheduleId], references: [id])
+  booking  Booking?
+
+  @@unique([scheduleId, seatLabel, journeyDate])
+}
+
+/// A seat reservation made by a passenger
+model Booking {
+  id             String        @id @default(cuid())
+  scheduleId     String
+  /// Null for NONE-mode buses (no seat selection)
+  scheduleSeatId String?       @unique
+  /// Actual travel date — critical for recurring schedules
+  journeyDate    DateTime
+  passengerName  String
+  /// Sri Lanka format: 94xxxxxxxxx (no leading +, no spaces)
+  passengerPhone String
+  passengerEmail String?
+  status         BookingStatus @default(PENDING)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  schedule     Schedule      @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  scheduleSeat ScheduleSeat? @relation(fields: [scheduleSeatId], references: [id])
+  payment      Payment?
+}
+
+/// Payment record linked 1-to-1 with a Booking
+model Payment {
+  id               String    @id @default(cuid())
+  bookingId        String    @unique
+  amount           Decimal   @db.Decimal(10, 2)
+  currency         String    @default("LKR")
+  /// Gateway transaction/reference ID
+  gatewayReference String?
+  /// Raw payload received from the payment gateway webhook
+  gatewayPayload   Json?
+  paidAt           DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+}
