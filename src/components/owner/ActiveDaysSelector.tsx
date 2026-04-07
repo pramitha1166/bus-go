@@ -3,13 +3,13 @@
 import { cn } from "@/lib/utils";
 
 const DAYS = [
-  { key: "MON", label: "Mon" },
-  { key: "TUE", label: "Tue" },
-  { key: "WED", label: "Wed" },
-  { key: "THU", label: "Thu" },
-  { key: "FRI", label: "Fri" },
-  { key: "SAT", label: "Sat" },
-  { key: "SUN", label: "Sun" },
+  { key: "1", label: "Mon" },
+  { key: "2", label: "Tue" },
+  { key: "3", label: "Wed" },
+  { key: "4", label: "Thu" },
+  { key: "5", label: "Fri" },
+  { key: "6", label: "Sat" },
+  { key: "7", label: "Sun" },
 ] as const;
 
 export type DayKey = typeof DAYS[number]["key"];
@@ -66,8 +66,8 @@ export function daysToString(days: DayKey[]): string {
 
 /** Parses a comma-separated days string back to DayKey[] */
 export function stringToDays(str: string): DayKey[] {
-  if (!str) return ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+  if (!str) return ["1", "2", "3", "4", "5", "6", "7"];
   return str.split(",").filter(Boolean) as DayKey[];
 }
 
-export const ALL_DAYS: DayKey[] = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+export const ALL_DAYS: DayKey[] = ["1", "2", "3", "4", "5", "6", "7"];
