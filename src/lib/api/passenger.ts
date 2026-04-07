@@ -14,18 +14,23 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   return data as T;
 }
 
-// UPDATED: uses fromStationId / toStationId instead of plain strings
+import { format } from "date-fns";
+
+// FIXED: searchSchedules always sends a date (defaults to today) and handles flat array response
 export async function searchSchedules(params: SearchParams): Promise<Schedule[]> {
-  const sp = new URLSearchParams();
+  const searchDate = params.date || format(new Date(), 'yyyy-MM-dd'); // Fix B/F: default to today
+  const sp = new URLSearchParams({ date: searchDate });
   if (params.fromStationId) sp.set("fromStationId", params.fromStationId);
-  if (params.toStationId)   sp.set("toStationId", params.toStationId);
-  if (params.date)          sp.set("date", params.date);
-  const data = await apiFetch<{ schedules: Schedule[] }>(`/api/schedules?${sp.toString()}`);
-  return data.schedules;
+  if (params.toStationId)   sp.set("toStationId",   params.toStationId);
+
+  // Fix E: API now returns a flat array (not wrapped in { schedules: [] })
+  const data = await apiFetch<Schedule[]>(`/api/schedules?${sp.toString()}`);
+  return data;
 }
 
-export async function getSeats(scheduleId: string): Promise<Seat[]> {
-  const data = await apiFetch<{ seats: Seat[] }>(`/api/schedules/${scheduleId}/seats`);
+// FIXED: getSeats needs journeyDate
+export async function getSeats(scheduleId: string, journeyDate: string): Promise<Seat[]> {
+  const data = await apiFetch<{ seats: Seat[] }>(`/api/schedules/${scheduleId}/seats?journeyDate=${journeyDate}`);
   return data.seats;
 }
 

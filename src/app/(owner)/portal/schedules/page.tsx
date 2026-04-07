@@ -2,29 +2,20 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { format, isToday, isFuture, isPast } from "date-fns";
-import { CalendarIcon, Plus, ArrowRight, MessageSquare } from "lucide-react";
+import { format } from "date-fns"; // FIXED: removed unused filter imports
+import { Plus, ArrowRight, MessageSquare } from "lucide-react"; // FIXED: removed CalendarIcon
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import SeatFillBar from "@/components/owner/SeatFillBar";
 import EmptyState from "@/components/shared/EmptyState";
-// NEW
 import { ScheduleToggle } from "@/components/owner/ScheduleToggle";
 import { getOwnerDashboard } from "@/lib/api/owner";
+import { Badge } from "@/components/ui/badge";
+import { formatTime12h } from "@/lib/dateHelpers";
 import type { OwnerDashboardResponse, OwnerSchedule } from "@/types/owner";
 import { cn } from "@/lib/utils";
 
-type StatusFilter = "upcoming" | "today" | "past";
+// FIXED: removed StatusFilter type — no longer needed
 
 interface FlatSchedule {
   schedule: OwnerSchedule;
@@ -35,16 +26,10 @@ interface FlatSchedule {
 
 export default function SchedulesPage() {
   const { data: session } = useSession();
-  const searchParams = useSearchParams();
-  const preSelectedBusId = searchParams.get("busId") ?? "all";
 
   const [dashboard, setDashboard] = useState<OwnerDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
-  const [busFilter, setBusFilter] = useState<string>(preSelectedBusId);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("upcoming");
-  const [dateOpen, setDateOpen] = useState(false);
-  // NEW: track active state locally so toggle updates without full refetch
+  // FIXED: track active state locally so toggle updates without full refetch
   const [activeOverrides, setActiveOverrides] = useState<Record<string, boolean>>({});
 
   const fetchData = useCallback(async () => {
@@ -65,6 +50,7 @@ export default function SchedulesPage() {
     fetchData();
   }, [fetchData]);
 
+  // FIXED: flat list of ALL schedules — no filtering
   const allSchedules: FlatSchedule[] = useMemo(() => {
     if (!dashboard) return [];
     return dashboard.buses.flatMap((bus) =>
@@ -76,27 +62,6 @@ export default function SchedulesPage() {
       }))
     );
   }, [dashboard]);
-
-  const filtered = useMemo(() => {
-    return allSchedules.filter(({ schedule, busId }) => {
-      const dep = new Date(schedule.departureAt);
-
-      if (busFilter !== "all" && busId !== busFilter) return false;
-
-      if (dateFilter) {
-        const same =
-          format(dep, "yyyy-MM-dd") === format(dateFilter, "yyyy-MM-dd");
-        if (!same) return false;
-      } else {
-        if (statusFilter === "upcoming" && !isFuture(dep) && !isToday(dep))
-          return false;
-        if (statusFilter === "today" && !isToday(dep)) return false;
-        if (statusFilter === "past" && (!isPast(dep) || isToday(dep))) return false;
-      }
-
-      return true;
-    });
-  }, [allSchedules, busFilter, dateFilter, statusFilter]);
 
   return (
     <div className="space-y-5">
@@ -111,74 +76,7 @@ export default function SchedulesPage() {
         </Button>
       </div>
 
-      {/* ── Filter bar ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-2">
-        {/* Date filter */}
-        <Popover open={dateOpen} onOpenChange={setDateOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className={cn("gap-2", dateFilter && "border-primary text-primary")}
-            >
-              <CalendarIcon className="w-4 h-4" />
-              {dateFilter ? format(dateFilter, "dd MMM yyyy") : "All dates"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={dateFilter}
-              onSelect={(d) => { setDateFilter(d); setDateOpen(false); }}
-              initialFocus
-            />
-            {dateFilter && (
-              <div className="p-2 border-t">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => { setDateFilter(undefined); setDateOpen(false); }}
-                >
-                  Clear date
-                </Button>
-              </div>
-            )}
-          </PopoverContent>
-        </Popover>
-
-        {/* Bus filter */}
-        <Select value={busFilter} onValueChange={setBusFilter}>
-          <SelectTrigger className="w-40 h-9">
-            <SelectValue placeholder="All buses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All buses</SelectItem>
-            {dashboard?.buses.map((b) => (
-              <SelectItem key={b.id} value={b.id}>
-                {b.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Status filter */}
-        {!dateFilter && (
-          <div className="flex gap-1">
-            {(["upcoming", "today", "past"] as StatusFilter[]).map((s) => (
-              <Button
-                key={s}
-                size="sm"
-                variant={statusFilter === s ? "default" : "outline"}
-                onClick={() => setStatusFilter(s)}
-                className="capitalize"
-              >
-                {s}
-              </Button>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* FIXED: filter bar removed entirely */}
 
       {/* ── Schedule list ───────────────────────────────────────────────────── */}
       {loading ? (
@@ -187,10 +85,10 @@ export default function SchedulesPage() {
             <div key={i} className="h-28 rounded-lg border bg-muted/40 animate-pulse" />
           ))}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : allSchedules.length === 0 ? (
         <EmptyState
           title="No schedules found"
-          description="Try changing your filters or add a new schedule."
+          description="Add a new schedule to get started."
           action={
             <Button asChild>
               <Link href="/portal/schedules/new">
@@ -203,8 +101,7 @@ export default function SchedulesPage() {
         />
       ) : (
         <div className="space-y-2">
-          {filtered.map(({ schedule, busName, totalSeats }) => {
-            const dep = new Date(schedule.departureAt);
+          {allSchedules.map(({ schedule, busName, totalSeats }) => {
             const isActive = activeOverrides[schedule.id] ?? schedule.isActive;
 
             return (
@@ -221,12 +118,21 @@ export default function SchedulesPage() {
                     <span className="truncate">{schedule.from}</span>
                     <ArrowRight className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
                     <span className="truncate">{schedule.to}</span>
+                    {/* Recurring / One-off type badge */}
+                    {schedule.isRecurring ? (
+                      <Badge variant="outline" className="px-1.5 py-0 h-4 text-[10px] bg-green-50 text-green-700 border-green-200 ml-1">Daily</Badge>
+                    ) : (
+                      <Badge variant="outline" className="px-1.5 py-0 h-4 text-[10px] bg-blue-50 text-blue-700 border-blue-200 ml-1">One-off</Badge>
+                    )}
                   </div>
                   {/* Meta */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <span>{busName}</span>
                     <span>·</span>
-                    <span>{format(dep, "dd MMM yyyy, h:mm a")}</span>
+                    <span>{formatTime12h(schedule.departureTime)}</span>
+                    {!schedule.isRecurring && schedule.departureAt && (
+                       <span>{format(new Date(schedule.departureAt), "dd MMM yyyy")}</span>
+                    )}
                     <span>·</span>
                     <span className="font-medium text-foreground">
                       LKR {schedule.price.toLocaleString()}
@@ -265,7 +171,6 @@ export default function SchedulesPage() {
 
                 {/* Right column: toggle + view button */}
                 <div className="flex flex-col items-end gap-2 shrink-0">
-                  {/* UPDATED: schedule toggle */}
                   <ScheduleToggle
                     scheduleId={schedule.id}
                     isActive={isActive}

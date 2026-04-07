@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { format, getISODay } from "date-fns";
 import db from "@/lib/db";
 import { generateSeatLayout } from "@/lib/seatLayout";
 
@@ -31,7 +32,26 @@ export async function GET(
       );
     }
 
+    // FIXED: Validate schedule activity and day-of-week
+    if (!schedule.isActive) {
+      return NextResponse.json({ error: "This schedule is not active." }, { status: 400 });
+    }
+
     const journeyDate = new Date(`${journeyDateParam}T00:00:00.000Z`);
+
+    if (schedule.isRecurring) {
+      const dayOfWeek = getISODay(journeyDate);
+      const activeDays = schedule.activeDays.split(',').map(Number);
+      if (!activeDays.includes(dayOfWeek)) {
+        return NextResponse.json({ error: "This schedule does not run on the selected date." }, { status: 400 });
+      }
+    } else {
+       // For non-recurring: check departureAt exists and matches
+       const scheduleDate = schedule.departureAt ? format(new Date(schedule.departureAt), 'yyyy-MM-dd') : null;
+       if (scheduleDate !== journeyDateParam) {
+          return NextResponse.json({ error: "Selected date does not match this one-off schedule." }, { status: 400 });
+       }
+    }
 
     // Fetch all ScheduleSeat records for this journey date
     const scheduleSeats = await db.scheduleSeat.findMany({

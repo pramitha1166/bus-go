@@ -24,7 +24,9 @@ export interface Schedule {
   id:                string;
   fromStation:       StationSummary;
   toStation:         StationSummary;
-  departureTime:     string;   // formatted time string e.g. "08:30 AM"
+  departureTime:     string;   // "HH:MM" format
+  departureAt:       string | null;
+  journeyDate:       string;   // "YYYY-MM-DD"
   price:             number;
   isRecurring:       boolean;
   activeDays:        string;

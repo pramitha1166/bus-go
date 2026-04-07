@@ -60,10 +60,12 @@ export async function GET(_req: NextRequest) {
           id:                  schedule.id,
           from:                schedule.fromStation.name,
           to:                  schedule.toStation.name,
+          departureTime:       schedule.departureTime, // FIXED: include departureTime
           departureAt:         schedule.departureAt,
           price:               Number(schedule.price),
           isRecurring:         schedule.isRecurring,
           isActive:            schedule.isActive,
+          activeDays:          schedule.activeDays, // FIXED: include activeDays
           seatSelectionMode:   schedule.seatSelectionMode,
           smsNotificationSent: schedule.smsNotificationSent,
           confirmedBookings:   confirmed.length,

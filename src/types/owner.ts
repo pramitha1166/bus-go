@@ -43,7 +43,8 @@ export interface OwnerSchedule {
   id:                  string;
   from:                string;
   to:                  string;
-  departureAt:         string;
+  departureTime:       string;   // "HH:MM" format
+  departureAt:         string | null;
   price:               number;
   isRecurring:         boolean;
   isActive:            boolean;

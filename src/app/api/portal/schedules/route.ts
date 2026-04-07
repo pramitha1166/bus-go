@@ -51,19 +51,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `No station found with toStationId "${toStationId}".` }, { status: 404 });
     }
 
-    let storedDepartureAt: Date;
-    if (isRecurring) {
-      const timePart = departureAt.includes("T") ? departureAt.split("T")[1].slice(0, 5) : departureAt.slice(0, 5);
-      storedDepartureAt = new Date(`1970-01-01T${timePart}:00.000Z`);
-    } else {
-      storedDepartureAt = new Date(departureAt);
-      if (isNaN(storedDepartureAt.getTime())) {
-        return NextResponse.json({ error: "departureAt must be a valid ISO datetime for non-recurring schedules." }, { status: 400 });
-      }
-      if (storedDepartureAt <= new Date()) {
-        return NextResponse.json({ error: "departureAt must be a future datetime." }, { status: 400 });
-      }
-    }
+    // FIXED: Extract time and store in departureTime
+    const time = new Date(departureAt)
+    const departureTime = `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
 
     const seatSelectionMode = getSeatSelectionMode(bus.busType);
 
@@ -72,10 +62,11 @@ export async function POST(req: NextRequest) {
         busId,
         fromStationId,
         toStationId,
-        departureAt:       storedDepartureAt,
-        price,
+        departureTime, // FIXED: stores "HH:MM"
+        departureAt: isRecurring ? null : new Date(departureAt), // FIXED: null if recurring
         isRecurring,
         activeDays,
+        price,
         seatSelectionMode,
         smsNotificationSent: false,
       },

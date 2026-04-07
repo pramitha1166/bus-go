@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { format, getISODay } from "date-fns";
 import db from "@/lib/db";
 import { sendSMS } from "@/lib/sms";
 
@@ -57,28 +58,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "This schedule is currently inactive." }, { status: 400 });
     }
 
-    // 3. Validate journey date day-of-week against activeDays
+    // 3. Validate journey date
     if (schedule.isRecurring) {
-      const dayOfWeek = getDayNumber(journeyDate);
+      const dayOfWeek = getISODay(journeyDate);
       const activeDays = schedule.activeDays.split(",").map(Number);
       if (!activeDays.includes(dayOfWeek)) {
         return NextResponse.json(
-          { error: `This schedule does not run on ${journeyDate.toLocaleDateString("en-LK", { weekday: "long" })}.` },
+          { error: `This schedule does not run on the selected date.` },
           { status: 400 }
         );
       }
     } else {
       // Non-recurring: journeyDate must match departureAt date
-      const depDate = new Date(schedule.departureAt).toISOString().slice(0, 10);
-      if (depDate !== journeyDateStr) {
+      const scheduleDate = schedule.departureAt ? format(new Date(schedule.departureAt), 'yyyy-MM-dd') : null;
+      if (scheduleDate !== journeyDateStr) {
         return NextResponse.json(
-          { error: `This non-recurring schedule only departs on ${depDate}.` },
+          { error: "Journey date does not match this one-off schedule." },
           { status: 400 }
         );
-      }
-      // Must be in the future
-      if (schedule.departureAt <= new Date()) {
-        return NextResponse.json({ error: "This journey has already departed." }, { status: 400 });
       }
     }
 

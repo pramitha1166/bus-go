@@ -1,6 +1,8 @@
 "use client";
 
+import { format } from "date-fns";
 import { ArrowRight, Bus } from "lucide-react";
+import { formatTime12h } from "@/lib/dateHelpers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Schedule } from "@/types/passenger";
@@ -54,10 +56,13 @@ export function ScheduleCard({ schedule, onSelect }: ScheduleCardProps) {
         </span>
       </div>
 
-      {/* Departure time — UPDATED: departureTime string */}
-      <div className="flex-shrink-0 text-left md:text-center md:min-w-[110px]">
+      {/* Departure time — FIXED: 12h format + journey date */}
+      <div className="flex-shrink-0 text-left md:text-center md:min-w-[130px]">
         <p className="text-2xl font-bold text-foreground tabular-nums leading-none">
-          {schedule.departureTime}
+          {formatTime12h(schedule.departureTime)}
+        </p>
+        <p className="text-[10px] text-muted-foreground mt-1 uppercase font-medium">
+          {format(new Date(schedule.journeyDate), "EEEE, d MMM yyyy")}
         </p>
       </div>
 

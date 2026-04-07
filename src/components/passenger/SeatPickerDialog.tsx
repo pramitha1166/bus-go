@@ -63,7 +63,7 @@ function SeatPickerContent({
     setSeatsLoading(true);
     setSeatsError(null);
     try {
-      const data = await getSeats(schedule.id);
+      const data = await getSeats(schedule.id, journeyDate);
       setSeats(data);
     } catch (err) {
       setSeatsError(err instanceof Error ? err.message : "Failed to load seat map.");

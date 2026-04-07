@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { format, isToday } from "date-fns";
+import { format, isToday, getISODay } from "date-fns";
 import {
   Bus,
   Calendar,
@@ -52,11 +52,22 @@ export default function PortalDashboardPage() {
   }, [fetchData]);
 
   // Today's schedules across all buses
-  const todaySchedules = dashboard?.buses.flatMap((bus) =>
-    bus.schedules
-      .filter((s) => isToday(new Date(s.departureAt)))
-      .map((s) => ({ schedule: s, bus }))
-  ) ?? [];
+  const todaySchedules = dashboard?.buses.flatMap((bus) => {
+    // FIXED: Correctly identify today's journeys (recurring vs non-recurring)
+    const today = new Date();
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const dayOfWeek = getISODay(today);
+
+    return bus.schedules
+      .filter((s) => {
+        if (s.isRecurring) {
+          const activeDays = s.activeDays.split(',').map(Number);
+          return activeDays.includes(dayOfWeek) && s.isActive;
+        }
+        return s.departureAt && format(new Date(s.departureAt), 'yyyy-MM-dd') === todayStr && s.isActive;
+      })
+      .map((s) => ({ schedule: s, bus }));
+  }) ?? [];
 
   if (error) {
     return (

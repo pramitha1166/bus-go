@@ -125,10 +125,10 @@ model Schedule {
   busId         String
   fromStationId String
   toStationId   String
-  /// For recurring schedules: store only the time using 1970-01-01 as a
-  /// placeholder date (only the HH:MM:SS portion matters).
-  /// For non-recurring schedules: store the full departure datetime.
-  departureAt         DateTime
+  /// Stores time only as "HH:MM" e.g. "08:30" — for recurring schedules
+  departureTime       String    @default("00:00") // FIXED: stores time only
+  /// Stores full datetime — for non-recurring schedules only, null for recurring ones
+  departureAt         DateTime? // FIXED: only for non-recurring
   price               Decimal           @db.Decimal(10, 2)
   /// If true, this schedule repeats every day (filtered by activeDays)
   isRecurring         Boolean           @default(true)
